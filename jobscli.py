@@ -7,14 +7,13 @@ import re
 from typing_extensions import Annotated
 from datetime import datetime
 
-# --- Constantes ---
-API_KEY = "COLOCA_AQUI_A_TUA_API_KEY"  # substituir pela vossa key
-# sandbox para desenvolvimento; se quiserem produção, usar "https://api.itjobs.pt"
+
+API_KEY = "COLOCA_AQUI_A_TUA_API_KEY"  
+
 BASE_URL = "http://api.sandbox.itjobs.pt"
 
-TYPE_PART_TIME = 2  # ID para "Part-time"
+TYPE_PART_TIME = 2
 
-# IDs de localidade segundo a documentação da API
 LOCATION_IDS = {
     "aveiro": 1,
     "açores": 2,
@@ -39,17 +38,13 @@ LOCATION_IDS = {
     "internacional": 29,
 }
 
-# Lista de skills para a Alínea (d)
 LISTA_SKILLS = [
     "python", "java", "sql", "react", "javascript",
     "c#", "aws", "azure", "docker", "php", "c++", "angular"
 ]
 
-# --- Aplicação CLI ---
 app = typer.Typer(help="CLI para interagir com a API de empregos do ITJobs.")
 
-
-# --- Funções Auxiliares (Alínea e) ---
 
 def _check_api_key():
     if not API_KEY or API_KEY == "COLOCA_AQUI_A_TUA_API_KEY":
@@ -133,8 +128,6 @@ def _get(endpoint: str, params: dict) -> dict:
     return data
 
 
-# --- Comandos da CLI ---
-
 @app.command(name="top", help="Lista os N trabalhos mais recentes. [Alínea a]")
 def get_top_jobs(
     n: Annotated[int, typer.Argument(help="Número de trabalhos a listar.")],
@@ -144,7 +137,6 @@ def get_top_jobs(
     Alínea (a): Listar os N trabalhos mais recentes (JSON; CSV opcional).
     Exemplo: python jobscli.py top 30 --export-csv top.csv
     """
-    # usar job/list para “mais recentes”
     data = _get("/job/list.json", {"limit": n})
     jobs = data.get("results", [])
 
@@ -178,9 +170,9 @@ def search_jobs(
         raise typer.Exit(code=1)
 
     params = {
-        "q": empresa,               # texto da empresa
-        "type": TYPE_PART_TIME,     # apenas part-time
-        "location": loc_id,         # id da localidade
+        "q": empresa,
+        "type": TYPE_PART_TIME,
+        "location": loc_id,
         "limit": n,
     }
 
@@ -215,10 +207,8 @@ def get_job_type(
 
     text_norm = _normalize_text(text_to_search)
 
-    # allowRemote: ou allowRemote
     allow_remote = bool(job_data.get("allowRemote:") or job_data.get("allowRemote"))
 
-    # padrões regex
     padrao_hibrido = r"\b(h[íi]brido|hybrid)\b"
     padrao_remoto = r"\b(remoto|remote|teletrabalho|work from home|wfh)\b"
     padrao_presencial = r"\b(presencial|on-site|no escrit[óo]rio)\b"
@@ -262,10 +252,8 @@ def count_skills_by_date(
         print("Erro: data_final < data_inicial.", file=sys.stderr)
         raise typer.Exit(code=1)
 
-    # inicializar contagem
     contagem_skills: dict[str, int] = {skill: 0 for skill in LISTA_SKILLS}
 
-    # regex para cada skill (contar ocorrências, não apenas anúncios)
     padroes = {}
     for skill in LISTA_SKILLS:
         if skill == "c#":
@@ -288,13 +276,11 @@ def count_skills_by_date(
             if not pub_str:
                 continue
 
-            # formato "YYYY-MM-DD HH:MM:SS"
             try:
                 pub_dt = datetime.strptime(pub_str, "%Y-%m-%d %H:%M:%S")
             except ValueError:
                 continue
 
-            # assumindo ordem decrescente de publicação
             if pub_dt < dt_start:
                 stop = True
                 continue
@@ -313,7 +299,6 @@ def count_skills_by_date(
 
         page += 1
 
-    # ordenar por número de ocorrências
     lista_ordenada = sorted(
         ({"skill": s, "count": c} for s, c in contagem_skills.items() if c > 0),
         key=lambda d: d["count"],
@@ -324,6 +309,5 @@ def count_skills_by_date(
     print(json.dumps(lista_ordenada, indent=2, ensure_ascii=False))
 
 
-# --- Ponto de entrada ---
 if __name__ == "__main__":
     app()
