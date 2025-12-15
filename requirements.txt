@@ -1,3 +1,4 @@
 typer
 requests
 typing_extensions
+beautifulsoup4
