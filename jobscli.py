@@ -129,6 +129,88 @@ def _get(endpoint: str, params: dict) -> dict:
     return data
 
 
+TEAMLYZER_UA = {"User-Agent": "Mozilla/5.0"}
+TEAMLYZER_BASE = "https://pt.teamlyzer.com"
+
+
+def _slugify_teamlyzer(name: str) -> str:
+    s = name.strip().lower()
+    s = re.sub(r"[^\w\s-]", "", s, flags=re.UNICODE)
+    s = re.sub(r"\s+", "-", s)
+    s = re.sub(r"-+", "-", s)
+    return s
+
+
+def _teamlyzer_fetch_company_page(company_slug: str) -> str | None:
+    url = f"{TEAMLYZER_BASE}/companies/{company_slug}"
+    try:
+        r = requests.get(url, headers=TEAMLYZER_UA, timeout=10)
+        if r.status_code != 200:
+            return None
+        return r.text
+    except requests.exceptions.RequestException:
+        return None
+
+
+def _teamlyzer_fetch_benefits_page(company_slug: str) -> str | None:
+    url = f"{TEAMLYZER_BASE}/companies/{company_slug}/benefits-and-values"
+    try:
+        r = requests.get(url, headers=TEAMLYZER_UA, timeout=10)
+        if r.status_code != 200:
+            return None
+        return r.text
+    except requests.exceptions.RequestException:
+        return None
+
+
+def _teamlyzer_parse_company_info(company_html: str, benefits_html: str | None) -> dict:
+    soup = BeautifulSoup(company_html, "html.parser")
+    text = soup.get_text("\n", strip=True)
+
+    rating = None
+    m = re.search(r"\b(\d+(?:\.\d+)?)\s*/\s*5\b", text)
+    if m:
+        try:
+            rating = float(m.group(1))
+        except ValueError:
+            rating = None
+            
+    salary = None
+    m = re.search(r"(\d[\d\.\s]*€)\s*-\s*(\d[\d\.\s]*€)", text)
+    if m:
+        salary = f"{m.group(1).strip()} - {m.group(2).strip()}"
+
+    description = None
+    candidates = [line for line in text.split("\n") if len(line) >= 80]
+    if candidates:
+        description = candidates[0]
+
+    benefits = []
+    if benefits_html:
+        bsoup = BeautifulSoup(benefits_html, "html.parser")
+        btext_lines = [ln.strip() for ln in bsoup.get_text("\n", strip=True).split("\n")]
+        for ln in btext_lines:
+            if 3 <= len(ln) <= 60 and ln[:1].isupper():
+                if ln in {"Toggle navigation", "Seguir", "Escrever review"}:
+                    continue
+                benefits.append(ln)
+                
+        seen = set()
+        new_benefits = []
+        for b in benefits:
+            if b not in seen:
+                seen.add(b)
+                new_benefits.append(b)
+        benefits = new_benefits[:10]
+
+    return {
+        "teamlyzer_rating": rating,
+        "teamlyzer_description": description,
+        "teamlyzer_benefits": benefits,
+        "teamlyzer_salary": salary,
+    }
+
+
 @app.command(name="top", help="Lista os N trabalhos mais recentes. [Alínea a]")
 def get_top_jobs(
     n: Annotated[int, typer.Argument(help="Número de trabalhos a listar.")],
